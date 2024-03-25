@@ -1,0 +1,108 @@
+# This workflow will build a MuleSoft project
+
+name: QA Pipeline
+on:
+  push:
+    branches: [qa-devops]
+jobs:
+  build_deploy_qa:
+    if: github.ref == 'refs/heads/qa-devops'    
+    runs-on: [rnd-it-ubuntu-java11,self-hosted, linux]
+    env:
+      ClientId: ${{ secrets.QA_CLIENTID }}
+      ClientSecret: ${{ secrets.QA_CLIENTSECRET }}
+      DEPLOY_ENV: "QA"
+      TARGET_NAME: "mulesoft-anypoint-qa"
+      CPU_RES: "100m"
+      CPU_LIMIT: "1500m"
+      MEM_RES: "1000Mi"
+      MEM_LIMIT: "2000Mi"
+      REPL_COUNT: "1"
+      
+    steps:
+    - uses: actions/checkout@v2
+    - name: Update the environment name with version in pom file
+      run: |
+        current_version=$(sed -n '7s/.*<version>\([^<]*\)<\/version>.*/\1/p' pom.xml)        
+        env_ver=$(echo $current_version | sed 's/DEV/QA/g')
+        sed -i "7s/<version>.*<\/version>/<version>${env_ver}<\/version>/" pom.xml
+        echo $env_ver
+        git config --global user.email "actions@github.com"
+        git config --global user.name "GitHub Actions"
+        git commit -m "Update the environment name with version number ${env_ver}" pom.xml
+        git push
+    - name: Build for QA
+      run: echo "Build for QA"
+    #- uses: actions/cache@v3
+    #  with:
+    #    path: ~/.m2/repository
+    #    key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+    #    restore-keys: |
+    #      ${{ runner.os }}-maven-
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - name: MVN Build
+      run: |
+        pwd
+        echo "current directory"
+        ls -lrtha
+        echo "/home/ubuntu/.m2 "
+        ls -lrtha /home/ubuntu/.m2
+        echo "home/settings.xml"
+        rm -rf /home/ubuntu/.m2/settings-security.xml
+        ls -alrt /home/ubuntu/.m2
+        cat /home/ubuntu/.m2/settings.xml
+        mvn -B package --file pom.xml      
+        #mvn -B package -X --file pom.xml
+    - name: Stamp artifact file name with commit hash
+      run: |
+        artifactName1=$(ls target/*.jar | head -1)
+        commitHash=$(git rev-parse --short "$GITHUB_SHA")
+        artifactName2=$(ls target/*.jar | head -1 | sed "s/.jar/.$commitHash.jar/g")
+        mv $artifactName1 $artifactName2
+    - uses: actions/upload-artifact@master
+      with:
+          name: artifacts
+          path: target/*.jar
+    #- uses: actions/cache@v3
+    #  with:
+    #    path: ~/.m2/repository
+    #    key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+    #    restore-keys: |
+    #      ${{ runner.os }}-maven-
+    - uses: actions/download-artifact@master
+      with:
+        name: artifacts
+    - name: Deploy to Exchange
+      run: |
+       pwd
+       echo "current directory"
+       ls -alrt
+       echo "/home/ubuntu/.m2 "
+       ls -alrt /home/ubuntu/.m2
+       echo "home/settings.xml"
+       sudo cp settings.xml /home/ubuntu/.m2/settings.xml
+       rm -rf /home/ubuntu/.m2/settings-security.xml
+       ls -alrt /home/ubuntu/.m2
+       cat /home/ubuntu/.m2/settings.xml
+       mvn -v
+       mvn --version
+       mvn clean deploy
+    - name: Publish to Anypoint Platform
+      run: |
+       mvn deploy -Denv=qa -DmuleDeploy
+
+    #- name: Checkout Prod branch
+    #  uses: actions/checkout@v2
+    #  with:
+    #    ref: main
+    #    fetch-depth: 0
+    #- name: Merge QA branch to Prod branch
+    #  run: |
+    #    git config --global user.email "actions@github.com"
+    #    git config --global user.name "GitHub Actions"
+    #    git merge origin/qa --no-commit
+    #    git commit -am "Merge QA to Prod branch"
+    #    git push origin main

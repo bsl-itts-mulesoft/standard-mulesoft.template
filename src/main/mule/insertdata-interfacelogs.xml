@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:s3="http://www.mulesoft.org/schema/mule/s3"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/s3 http://www.mulesoft.org/schema/mule/s3/current/mule-s3.xsd">
+	<sub-flow name="Statusreport_flow" doc:id="4bd16109-68ba-4473-8ff6-b22ac363d0eb">
+		<set-variable value="inserting data to interface_logs table" doc:name="flowstatus" doc:id="d9921536-25ba-49b8-8aa8-194ec89d7352" variableName="flowstatus"/>
+		<logger level="INFO" doc:name="inserting to interface_logs" doc:id="94c41cb5-3dab-4b35-8b62-3b237d1c1e64" message='#["inserting into interface_logs : " ++ vars.FileName]' />
+		<set-variable value="#[0]" doc:name="counter" doc:id="41066fbc-4230-4f77-8b65-87beb3eac1f9" variableName="bodycounter" />
+		<choice doc:name="Choice" doc:id="074b5769-ecdb-4a39-88fd-4a4a953d3305">
+			<when expression='#[vars.ProjectDBdetails.payload_save_type[0] == "s3"]'>
+				<ee:transform doc:name="header" doc:id="d57edb26-57d0-4622-bc57-120a44f93bdb">
+					<ee:message />
+					<ee:variables>
+						<ee:set-variable variableName="header"><![CDATA[%dw 2.0
+output application/csv header=false
+---
+//update the header line based on the project 
+header : "default header" ++ vars.FileName]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<db:insert doc:name="header to interface_logs Db" doc:id="f47d875a-3351-4d09-9275-227cf6b7cf94" config-ref="Database_Config">
+					<db:sql><![CDATA[insert into public.interface_logs (interface_name, status, file_name , exe_start_date ,target_payload, child, source, target)
+VALUES (:interface_name, :status, :file_name, :start_time, :target_payload, :child, :source, :target);]]></db:sql>
+					<db:input-parameters><![CDATA[#[%dw 2.0
+output application/json
+var cTime= (now() as String {format: "yyyy-MM-dd'T'HH:mm:ss"} >> "UTC") as DateTime  // {format: "yyyy-MM-dd'T'hh:mm:ss"}
+fun timeFormat(t) = ((t as String  ) replace  "T" with " ") replace "Z" with "" // Required format in Postgresql
+---
+{
+	id : 1,
+	interface_name : vars.InterfaceName,
+	status : "pending",
+	file_name : vars.FileName,
+	start_time:  timeFormat(cTime),
+	target_payload : vars.header,
+	child: "0",
+	source: vars.ProjectDBdetails.source_systems[0],
+	target: vars.ProjectDBdetails.target_systems[0]
+}]]]></db:input-parameters>
+				</db:insert>
+				<choice doc:name="Choice" doc:id="52ddbe54-b9ad-449f-9de9-1aef75e422ac" >
+					<when expression='#[vars.ProjectDBdetails.multi_transaction[0] == "1"]'>
+						<db:insert doc:name="body to interface_logs Db" doc:id="de433bfb-0785-432e-8914-de92bfb21769" config-ref="Database_Config">
+				<db:sql><![CDATA[insert into public.interface_logs (interface_name, status, file_name , exe_start_date, child, source, target)
+VALUES (:interface_name, :status, :file_name, :start_time,:child, :source, :target);]]></db:sql>
+				<db:input-parameters><![CDATA[#[%dw 2.0
+import remove from dw::core::Strings
+output application/json
+var cTime= (now() as String {format: "yyyy-MM-dd'T'HH:mm:ss"} >> "UTC") as DateTime  // {format: "yyyy-MM-dd'T'hh:mm:ss"}
+fun timeFormat(t) = ((t as String  ) replace  "T" with " ") replace "Z" with "" // Required format in Postgresql
+---
+{
+	id : 1,
+	interface_name : vars.InterfaceName,
+	status : "pending",
+	file_name : vars.FileName,
+	start_time:  timeFormat(cTime),
+	child: "1",
+	source: vars.ProjectDBdetails.source_systems[0],
+	target: vars.ProjectDBdetails.target_systems[0]
+}]]]></db:input-parameters>
+			</db:insert>
+					</when>
+				</choice>
+				</when>
+			<otherwise>
+				<ee:transform doc:name="header" doc:id="96d8df62-f032-4ecc-be24-03ab27e852fa">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="header"><![CDATA[%dw 2.0
+output application/csv header=false
+---
+//update the header line based on the project 
+vars.sourcedata[0] mapObject (value, key, index) -> {headers: key}
+]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+				<db:insert doc:name="header to interface_logs Db" doc:id="26871a03-af33-468e-b9ad-88bed3c971a6" config-ref="Database_Config">
+						<db:sql><![CDATA[insert into public.interface_logs (interface_name, status, file_name , exe_start_date ,target_payload, child, source, target)
+VALUES (:interface_name, :status, :file_name, :start_time, :target_payload, :child, :source, :target);]]></db:sql>
+						<db:input-parameters><![CDATA[#[%dw 2.0
+output application/json
+var cTime= (now() as String {format: "yyyy-MM-dd'T'HH:mm:ss"} >> "UTC") as DateTime  // {format: "yyyy-MM-dd'T'hh:mm:ss"}
+fun timeFormat(t) = ((t as String  ) replace  "T" with " ") replace "Z" with "" // Required format in Postgresql
+---
+{
+	id : 1,
+	interface_name : vars.InterfaceName,
+	status : "pending",
+	file_name : vars.FileName,
+	start_time:  timeFormat(cTime),
+	target_payload : vars.header,
+	child: "0",
+	source: vars.ProjectDBdetails.source_systems[0],
+	target: vars.ProjectDBdetails.target_systems[0]
+}]]]></db:input-parameters>
+					</db:insert>
+				<choice doc:name="Choice" doc:id="0c6d06a1-8449-4d5c-b5e6-dd76a0329685">
+					<when expression='#[vars.ProjectDBdetails.multi_transaction[0] == "1"]'>
+						<foreach doc:name="For Each" doc:id="de59c296-d655-4248-b1d3-a122ec39a4c4" collection="#[vars.sourcedata]">
+					<ee:transform doc:name="body" doc:id="9fe8e204-e2db-4f68-97a3-d8ee1221d926">
+				<ee:message>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="body"><![CDATA[%dw 2.0
+output text
+---
+write(vars.sourcedata[(vars.bodycounter)],'application/csv',{"header" : false, "separator" : ",", "bodyStartLineNumber" : 0
+})]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+			<db:insert doc:name="body to interface_logs Db" doc:id="0d152dc6-bcc9-46f6-92d7-fd0300447305" config-ref="Database_Config">
+						<db:sql><![CDATA[insert into public.interface_logs (interface_name, status, file_name , exe_start_date, target_payload,child, source, target)
+VALUES (:interface_name, :status, :file_name, :start_time, :target_payload,:child, :source, :target);]]></db:sql>
+						<db:input-parameters><![CDATA[#[%dw 2.0
+import remove from dw::core::Strings
+output application/json
+var cTime= (now() as String {format: "yyyy-MM-dd'T'HH:mm:ss"} >> "UTC") as DateTime  // {format: "yyyy-MM-dd'T'hh:mm:ss"}
+fun timeFormat(t) = ((t as String  ) replace  "T" with " ") replace "Z" with "" // Required format in Postgresql
+---
+{
+	id : 1,
+	interface_name : vars.InterfaceName,
+	status : "pending",
+	file_name : vars.FileName,
+	start_time:  timeFormat(cTime),
+	target_payload: vars.body remove "\\r\\n",
+	child: "1",
+	source: vars.ProjectDBdetails.source_systems[0],
+	target: vars.ProjectDBdetails.target_systems[0]
+}]]]></db:input-parameters>
+					</db:insert>
+			<set-variable value="#[vars.bodycounter + 1]" doc:name="increment counter" doc:id="c911f357-d63e-4711-a3db-43f37e5b2359" variableName="bodycounter" />
+		</foreach>
+					</when>
+				</choice>
+				</otherwise>
+		
+</choice>
+
+</sub-flow>
+</mule>

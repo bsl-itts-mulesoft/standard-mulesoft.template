@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:solace="http://www.mulesoft.org/schema/mule/solace"
+	xmlns:s3="http://www.mulesoft.org/schema/mule/s3"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/s3 http://www.mulesoft.org/schema/mule/s3/current/mule-s3.xsd
+http://www.mulesoft.org/schema/mule/solace http://www.mulesoft.org/schema/mule/solace/current/mule-solace.xsd">
+	<sub-flow name="target-wrapperSub_Flow" doc:id="363bb76a-de70-45dd-ac36-6013d6928f47" >
+		<set-variable value="target wrapper in progress" doc:name="flowstatus" doc:id="23da5e4d-1108-4f1d-9c42-dbdf8ad46909" variableName="flowstatus" />
+		<db:select doc:name="wrapper db table" doc:id="74934d04-a547-4532-80f2-f964a0a62be7" config-ref="Database_Config">
+			<db:sql><![CDATA[select * from public.wrapper_src_control 
+	where  interface_name = :interface_name
+	and type = :type]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+	interface_name : vars.InterfaceName,
+	"type" : "target"
+}]]]></db:input-parameters>
+		
+</db:select>
+		<flow-ref doc:name="AWS_secretmanager_retrieve" doc:id="eba3ccb5-2c2d-4e44-97ce-dcaf0a6ff893" name="s3keys_datacache_flow" />
+		<parallel-foreach doc:name="Parallel For Each" doc:id="e0737422-23b4-4cb2-a24d-e84f38e55f08" collection="#[payload]" maxConcurrency="5">
+			<set-variable value="#[payload]" doc:name="transferdetails" doc:id="df198b79-7224-4cfd-a09b-e2597c28024c" variableName="wrappercontrol" />
+			<flow-ref doc:name="target_choice_flow" doc:id="d15239aa-aa14-4e96-bcdb-cb6422bf521d" name="target_choice_flow" />
+
+		
+</parallel-foreach>
+	</sub-flow>
+	<sub-flow name="target_choice_flow" doc:id="96741e95-d4b5-4a6c-bca4-a1750fef1f53" >
+		<choice doc:name="Choice" doc:id="1873bcc1-9927-4e9a-bb0c-1b6a92cc5f79">
+			<when expression='#[vars.wrappercontrol.source_type == "sftp"]'>
+				<db:select doc:name="Select" doc:id="cf0f3af0-1bd7-41a4-926d-477330800660" target="transferdetails" config-ref="Database_Config" targetValue="#[payload[0]]">
+					<db:sql ><![CDATA[select * from public.wrapper_src_sftp_params
+where  interface_name = :interface_name
+and type = :type]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	interface_name : vars.InterfaceName,
+	"type" : "target"
+}]]]></db:input-parameters>
+				</db:select>
+				<flow-ref doc:name="wrapper_target_sftp_flow" doc:id="361a0dc4-05f5-470c-afbb-db340496c1c4" name="wrapper_target_sftp_flow" />
+			
+</when>
+			<when expression='#[vars.wrappercontrol.source_type == "queue"]'>
+				<db:select doc:name="Select" doc:id="5b830d0b-17d0-4d98-b515-07718b922472" target="transferdetails" config-ref="Database_Config" targetValue="#[payload[0]]">
+					<db:sql><![CDATA[select * from  public.wrapper_src_queue_params
+where  interface_name = :interface_name
+and type = :type]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	interface_name : vars.InterfaceName,
+	"type" : "target"
+}]]]></db:input-parameters>
+				</db:select>
+				<flow-ref doc:name="wrapper_target_queue_flow" doc:id="d4759884-0ea9-4815-81a4-d934378487b2" name="wrapper_target_queue_flow" />
+			
+</when>
+			<when expression='#[vars.wrappercontrol.source_type == "s3"]'>
+				<db:select doc:name="Select" doc:id="af2e8e83-21e4-4a54-b65e-2a3c27cb0dd5" target="transferdetails" config-ref="Database_Config" targetValue="#[payload[0]]">
+					<db:sql><![CDATA[select * from public.wrapper_src_s3_params
+where  interface_name = :interface_name
+and type = :type]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	interface_name : vars.InterfaceName,
+	"type" : "target"
+}]]]></db:input-parameters>
+				</db:select>
+				<flow-ref doc:name="wrapper_target_s3_flow" doc:id="38c43cc3-6924-4f4f-859f-39d05dccd29b" name="wrapper_target_s3_flow" />
+			
+</when>
+<when expression='#[vars.wrappercontrol.source_type == "https"]'>
+				<db:select doc:name="Select" doc:id="38262e51-7432-4469-95cf-dfd867e0aa4e" target="transferdetails" config-ref="Database_Config" targetValue="#[payload[0]]">
+					<db:sql><![CDATA[select * from public.wrapper_src_http_params
+where  interface_name = :interface_name
+and type = :type]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	interface_name : vars.InterfaceName,
+	"type" : "target"
+}]]]></db:input-parameters>
+				</db:select>
+				<flow-ref doc:name="wrapper_target_s3_flow" doc:id="6ddd7d05-20e2-418e-8882-ccc46e3072fa" name="wrapper_target_https_Flow" />
+			
+</when>
+			<otherwise>
+				<logger level="INFO" doc:name="target not defined" doc:id="7c55bb3a-6736-45fb-893c-c846dbd4142f" message="target type not defined" />
+			
+</otherwise>
+		</choice>
+	</sub-flow>
+	<sub-flow name="wrapper_target_queue_flow" doc:id="3330be1f-4038-42d2-a875-79ed2091bd86">
+		<logger level="INFO" doc:name="Logger" doc:id="77995e0c-207c-4d57-a2ce-0c8795f56d64" message="Sending transformed payload to queue"/>
+		<solace:publish doc:name="Publish" doc:id="e260f663-acae-4f4a-bb93-15cebd1898d0" config-ref="Solace_PubSub__Connector_Config_EHFSubQueue" address="#[vars.transferdetails.queue_name]">
+			<solace:message >
+				<solace:body ><![CDATA[#[vars.transformed_payload]]]></solace:body>
+			</solace:message>
+		</solace:publish>
+	
+
+</sub-flow>
+	<sub-flow name="wrapper_target_s3_flow" doc:id="e604703c-6c68-4962-a93e-ad04138dc5ab" >
+		<logger level="INFO" doc:name="Logger" doc:id="617f81ed-d39f-42f4-aa6b-f7423965dfa0" message="Sending  transformed payload to S3/ODX"/>
+		<set-variable doc:name="FileName" doc:id="98ee5dca-b851-4f48-a7c4-8709a13c18ca" variableName="ProcessingFile" value='S3filename' />
+		<s3:create-object doc:name="Create object" doc:id="c6407d46-ea04-4769-9a13-9413e9ee9bf5" config-ref="Amazon_S3_Configuration_odx" bucketName='#[vars.transferdetails.source_bucket_name ++ "/" ++ vars.transferdetails.source_folder_name]' key="#[vars.LineData.file_name]">
+			<s3:object-content ><![CDATA[#[vars.transformed_payload]]]></s3:object-content>
+		</s3:create-object>
+	</sub-flow>
+	<sub-flow name="wrapper_target_sftp_flow" doc:id="b71e3841-8074-4714-baa1-15b3afe31b14">
+		<logger level="INFO" doc:name="Logger" doc:id="e6ee5a5e-315a-4ef3-984a-8c4be2db7ad3" message="Sending  transformed payload  to sftp"/>
+		<file:write doc:name="Write" doc:id="d33a3e03-7aa5-4311-ad65-47f32fce862e" path="${mule.home}/apps/${app.name}/$(vars.transferdetails.sm_certname)">
+			<file:content><![CDATA[#[%dw 2.0
+output application/java
+import * from dw::core::Binaries
+---
+fromBase64(p('aws-secrets::$(vars.transferdetails.sm_certname)'))]]]></file:content>
+		</file:write>
+		<sftp:write doc:name="Write" doc:id="86913272-d57f-4ba6-b1b2-6bd9db23ecde" config-ref="SFTP_Config" path="#[vars.transferdetails.directory_path]">
+			<sftp:content><![CDATA[#[vars.transformed_payload]]]></sftp:content>
+		</sftp:write>
+	
+</sub-flow>
+	<sub-flow name="wrapper_target_https_Flow" doc:id="2bfd9c27-b639-4ed4-a1ab-8655ca60000e" >
+		<logger level="INFO" doc:name="Logger" doc:id="ad3d210a-ef5e-4e66-9d73-7e89a352d34a" message="Sending transformed payload to target http"/>
+		<http:request method="#[vars.transferdetails.methodname]" doc:name="Request" doc:id="615d5a57-21a7-4273-b4a3-f8a50d0f4596" config-ref="HTTP_Request_configuration_target" url="#[vars.transferdetails.url]" target="response">
+			<http:body ><![CDATA[#[vars.transformed_payload]]]></http:body>
+
+		</http:request>
+		
+</sub-flow>
+
+</mule>

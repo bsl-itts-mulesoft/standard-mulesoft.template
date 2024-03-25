@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:oauth="http://www.mulesoft.org/schema/mule/oauth"
+	xmlns:aws-secrets-manager-properties-override="http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override" xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns:solace="http://www.mulesoft.org/schema/mule/solace" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:s3="http://www.mulesoft.org/schema/mule/s3" xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd 
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd
+http://www.mulesoft.org/schema/mule/s3 http://www.mulesoft.org/schema/mule/s3/current/mule-s3.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/solace http://www.mulesoft.org/schema/mule/solace/current/mule-solace.xsd
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override http://www.mulesoft.org/schema/mule/aws-secrets-manager-properties-override/current/mule-aws-secrets-manager-properties-override.xsd
+http://www.mulesoft.org/schema/mule/oauth http://www.mulesoft.org/schema/mule/oauth/current/mule-oauth.xsd">
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="aa27be38-84cb-4657-8a4b-2e91bb58a009" >
+		<email:smtp-connection host="${smtp.host}" port="${smtp.port}" user="${smtp.user}" password="${smtp.password}" connectionTimeout="${smtp.timeout}" readTimeout="${smtp.read-timeout}" writeTimeout="${smtp.write-timeout}">
+			<reconnection >
+				<reconnect frequency="${smtp.reconnection.frequency}" count="${smtp.reconnection.attempts}" />
+			</reconnection>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<http:request-config name="HTTP_Request_configuration_target" doc:name="HTTP Request configuration" doc:id="962e022a-83b7-4c03-baaa-0a5b4ce00f77" >
+		<http:request-connection protocol="HTTPS">
+			<http:authentication >
+				<oauth:client-credentials-grant-type clientId="6984594a98ed47d788b050be084314a3" clientSecret="a3c03d22-200b-4a91-a7f4-ce9a6d006432" scopes="https://D89D8E604A8E4862B5FE678A9D4C5083.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all" tokenUrl="https://idcs-01c1e32924fc42c6af9b79b9e3de57f3.identity.oraclecloud.com/oauth2/v1/token" />
+			</http:authentication>
+		</http:request-connection>
+	</http:request-config>
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="cf07e490-fa26-4ef5-b959-ed1dec807c73" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="4e9a757d-52f8-4428-acfd-1e8c7c59aba5" file="properties\\${env}.yaml" />
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="7303afc9-6b92-4c43-840b-fa7cce1b9386" >
+		<db:generic-connection url="${db.URL}" driverClassName="${db.className}" user="${db.user}" password="${db.password}" />
+	</db:config>
+	<solace:config name="Solace_PubSub__Connector_Config" doc:name="Solace PubSub+ Connector Config" doc:id="82b47c10-3092-407a-bf21-4ae4d0feebe3" >
+		<solace:connection clientUserName="${solace.ClientUserName}" password="${solace.ClinetPassword}" msgVPN="${solace.VPN}" brokerHost="${solace.BrokerHost}" />
+	</solace:config>
+	<sftp:config name="SFTP_Config" doc:name="SFTP Config" doc:id="a26e2447-11ce-4055-896d-bd007b28023b" >
+		<sftp:connection host="#[vars.transferdetails.host]" username="#[vars.transferdetails.sftpusername]" identityFile="${mule.home}/apps/${app.name}/$(vars.transferdetails.sm_certname)" passphrase="changeit" connectionTimeout="60" responseTimeout="60" port="#[vars.transferdetails.port]"/>
+	</sftp:config>
+	<solace:config name="Solace_PubSub__Connector_Config_EHFSubQueue" doc:name="Solace PubSub+ Connector Config" doc:id="7e8559ea-3122-4994-b6eb-7a667148f2d5" >
+		<solace:connection clientUserName="#[vars.transferdetails.client_user_name]" password="dev$Errorsub2022" msgVPN="#[vars.transferdetails.message_vpn]" brokerHost="#[vars.transferdetails.broker_host]" />
+	</solace:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="566714f8-c3e5-4cef-84af-9e794d9d1520" file="properties\\${env}.yaml" />
+	<s3:config name="Amazon_S3_Configuration_odx" doc:name="Amazon S3 Configuration" doc:id="b8947e0d-722f-4210-9237-b66a80fdae17" >
+		<s3:role-connection roleARN="#[vars.transferdetails.source_role_arn]" accessKey="#[vars.awsSecrets.accessKey]" secretKey="#[vars.awsSecrets.secretKey]" region="#[vars.awsSecrets.region]" />
+	</s3:config>
+	<s3:config name="Amazon_S3_Configuration" doc:name="Amazon S3 Configuration" doc:id="374cf2fc-40c8-4c73-accf-4c8d25a2225f" >
+		<s3:role-connection roleARN="#[vars.awsSecrets.roleArn]" accessKey="#[vars.awsSecrets.accessKey]" secretKey="#[vars.awsSecrets.secretKey]" region="#[vars.awsSecrets.region]" />
+	
+</s3:config>
+	<configuration doc:name="Configuration" doc:id="3ed8e661-3c5c-4973-9189-f752af15b74b" defaultErrorHandler-ref="common-error-handler-flow" correlationIdGeneratorExpression="#[uuid()]" />
+	<file:config name="File_Config" doc:name="File Config" doc:id="2e404451-adc9-4393-9266-90b1fba84538" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="43a763ad-1d02-4dd6-b58d-04915a806898" responseTimeout="360000">
+		<http:request-connection host="mulesoft-anypoint-dev.corp.hpicloud.net" protocol="HTTPS">
+			<tls:context>
+				<tls:trust-store insecure="true" />
+			</tls:context>
+			<http:authentication>
+				<oauth:client-credentials-grant-type clientId="346be509e90b46e0942218bfc90bdbfc" clientSecret="923446fF72cb445381F11aFFb23Fb633" tokenUrl="https://anypoint.mulesoft.com/accounts/api/v2/oauth2/token" />
+			</http:authentication>
+		</http:request-connection>
+	</http:request-config>
+	<global-property doc:name="Global Property" doc:id="b5db2eaf-52a6-4f7c-95f2-b16e3218a5f4" name="env" value="dev" />
+
+</mule>

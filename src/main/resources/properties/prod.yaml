@@ -1,0 +1,46 @@
+S3 :   
+    BucketName: "hp-ei-mulesoft-s3-prd"
+    
+application:
+  name : "i041paypal-ordertos4-papi" 
+  
+secretmanager:
+  url : "http://mule-aws-api/getsecret/prod-mule"
+  
+db:
+  URL: "jdbc:postgresql://mulesoft-anypoint-prod.cpv91pv9zsgp.us-west-2.rds.amazonaws.com:5432/mulesoft-anypoint-prod"
+  className: "org.postgresql.Driver"
+  user: "mulesoft-prod"
+  password: "muleprod@2022"
+  
+ 
+solace:
+  ClientUserName: "hpeb-dev-muleapp-pub-user"
+  ClinetPassword: "dev$Error2022"
+  VPN: "HPEB-DEV"
+  BrokerHost: "tcps://hpeb-non-pro-a.corp.hpicloud.net:55443,tcps://hpeb-non-pro-b.corp.hpicloud.net:55443"
+ 
+  
+mule:
+  env: "prod"
+  
+smtp:
+  host: 'smtp3.hp.com'
+  port: '25'
+  user: 'test'  
+  timeout: '15000'
+  read-timeout: '15000'
+  write-timeout: '15000'
+  toAddress: 'tejaswini.s2@hp.com'
+  fromAddress: 'no-reply-mulesoft-ipas@hp.com'
+  password: 'test'
+  reconnection:
+    frequency: '5000'
+    attempts: '5'
+    
+app:
+  port: "8081"
+  timeout: "300000"
+  basepath: "/i041paypal-ordertos4-papi"
+  path: "/*"
+  pod-health-path: "/pod-health"
